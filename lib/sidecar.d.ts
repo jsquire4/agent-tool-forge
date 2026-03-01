@@ -12,6 +12,7 @@ export interface SidecarOptions {
   autoListen?: boolean;
   enableDrift?: boolean;
   widgetDir?: string;
+  customRoutes?: (req: object, res: object, ctx: SidecarContext) => Promise<boolean> | boolean;
 }
 
 export interface SidecarContext {
@@ -27,6 +28,10 @@ export interface SidecarContext {
   config: SidecarConfig;
   env: Record<string, string>;
   configPath?: string;
+  evalStore: object | null;
+  chatAuditStore: object | null;
+  verifierStore: object | null;
+  pgStore: object | null;
   [key: string]: unknown;
 }
 

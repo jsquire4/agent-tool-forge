@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.0] — 2026-03-01
+
+### Added
+
+- **`PostgresRateLimiter`** — Postgres-backed fixed-window rate limiter; uses atomic `INSERT … ON CONFLICT DO UPDATE` on the new `rate_limit_buckets` table; preferred over in-memory fallback when `pgPool` is available and no Redis client is configured
+- **`makeRateLimiter(config, redis, pgPool)`** — third parameter `pgPool` added; factory selects `PostgresRateLimiter` when `pgPool` is provided and `redis` is null
+- **`GET /agent-api/evals/summary`** — built-in sidecar route; returns per-tool eval summary via `ctx.evalStore.getEvalSummary()` (Postgres) or inline SQLite aggregation; also responds to `/agent-api/v1/evals/summary`
+- **`GET /agent-api/evals/runs`** — built-in sidecar route; paginated eval run list via `ctx.evalStore.listRuns(limit, offset)` (Postgres) or SQLite; also responds to `/agent-api/v1/evals/runs`
+- **`drift_alerts` table in Postgres SCHEMA** — mirrors the SQLite schema; created on startup via `CREATE TABLE IF NOT EXISTS`
+- **`rate_limit_buckets` table in Postgres SCHEMA** — created on startup for use by `PostgresRateLimiter`
+- **Drift monitor Postgres path** (`drift-background.js`) — `createDriftMonitor()` now accepts an optional fourth `pgCtx` argument `{ pgStore, evalStore, _pgPool }`; when provided, uses async Postgres queries instead of the synchronous SQLite helpers; drift detection now works correctly in Postgres-only deployments where `eval_runs` rows exist only in Postgres
+- **Postgres context threading in `createSidecar()`** — when `ctx._pgPool` is set, `pgCtx` is automatically built and passed to `createDriftMonitor()`
+
+### Fixed
+
+- **Drift monitor silently reporting no drift in Postgres deployments** — the SQLite path read from a perpetually empty local `eval_runs` table; all drift alerts were missed; now correctly reads from Postgres when configured
+- **Rate limiter always falling back to in-memory when Redis absent** — even when Postgres was available; now uses `PostgresRateLimiter` for durable, cross-instance rate limiting without Redis
+
+### Changed
+
+- **TypeScript declarations fully updated** (`postgres-store.d.ts`, `sidecar.d.ts`, `rate-limiter.d.ts`) — all classes and methods added in the 0.4.x sprint now have accurate type declarations; `SidecarOptions.customRoutes`, `SidecarContext.evalStore/chatAuditStore/verifierStore/pgStore`, `makeRateLimiter` third parameter
+
+### Tests
+
+- +9 tests (739 total, 0 failures): `PostgresRateLimiter` (4), drift Postgres path (4), `makeRateLimiter` pgPool routing (1)
+
+---
+
 ## [0.4.3] — 2026-03-01
 
 ### Added
@@ -157,6 +185,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **TUI** (`lib/index.js`) — blessed-based terminal interface with main menu, tools & evals view, model comparison, drift monitor, forge workflow, onboarding, and settings screens
 - **HTTP sidecar endpoints**: `POST /agent-api/chat` (SSE), `POST /agent-api/chat-sync`, `POST /agent-api/chat/resume`, `GET/PUT /agent-api/user/preferences`, `GET /agent-api/conversations`, `GET /agent-api/tools`, `PUT /forge-admin/config/:section`, `GET/POST/PUT/DELETE /forge-admin/agents*`
 
+[0.5.0]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.0...v0.4.1

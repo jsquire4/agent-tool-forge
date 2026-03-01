@@ -92,8 +92,8 @@
     }
   },
   "bin": {
-    "forge": "./lib/index.js",
-    "forge-service": "./lib/forge-service.js"
+    "forge": "lib/index.js",
+    "forge-service": "lib/forge-service.js"
   },
   "engines": {
     "node": ">=18"

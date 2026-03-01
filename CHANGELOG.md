@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.2] — 2026-03-01
+
+### Added
+
+- **`PostgresChatAuditStore.getStats()`** — aggregate query on `chat_audit`: total sessions, avg duration ms, error rate, messages in last 24 hours
+- **`PostgresChatAuditStore.getSessions(limit, offset)`** — paginated list from `chat_audit`, newest first
+- **`PostgresVerifierStore.insertVerifierResult()`** — moved from `PostgresStore` where it was stranded; now co-located with the config side of verifier management
+- **`PostgresVerifierStore.getResults(toolName?, limit?)`** — read verifier run outcomes; optional tool filter, defaults to 100 rows newest-first
+
+### Changed
+
+- **`server.js` audit + verifier endpoints** — replaced raw `ctx._pgPool.query()` calls for `/audit/stats`, `/audit/sessions`, and `/verifier-results` with store method calls (`ctx.chatAuditStore.getStats()`, `ctx.chatAuditStore.getSessions()`, `ctx.verifierStore.getResults()`)
+- **`PostgresStore.insertVerifierResult` removed** — consolidated onto `PostgresVerifierStore`; `PostgresStore` remains the base read/tool-registry store
+
+### Tests
+
+- 5 new tests: `getStats()` shape, `getSessions()` param forwarding, `insertVerifierResult()`, `getResults()` with filter, `getResults()` without filter
+
+---
+
 ## [0.4.1] — 2026-03-01
 
 ### Fixed
@@ -128,6 +148,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **TUI** (`lib/index.js`) — blessed-based terminal interface with main menu, tools & evals view, model comparison, drift monitor, forge workflow, onboarding, and settings screens
 - **HTTP sidecar endpoints**: `POST /agent-api/chat` (SSE), `POST /agent-api/chat-sync`, `POST /agent-api/chat/resume`, `GET/PUT /agent-api/user/preferences`, `GET /agent-api/conversations`, `GET /agent-api/tools`, `PUT /forge-admin/config/:section`, `GET/POST/PUT/DELETE /forge-admin/agents*`
 
+[0.4.2]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/jsquire4/agent-tool-forge/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jsquire4/agent-tool-forge/compare/v0.2.0...v0.3.0

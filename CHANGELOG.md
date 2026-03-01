@@ -22,6 +22,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Drift monitor silently reporting no drift in Postgres deployments** — the SQLite path read from a perpetually empty local `eval_runs` table; all drift alerts were missed; now correctly reads from Postgres when configured
 - **Rate limiter always falling back to in-memory when Redis absent** — even when Postgres was available; now uses `PostgresRateLimiter` for durable, cross-instance rate limiting without Redis
+- **`PostgresRateLimiter.check()` uncaught rejection on DB outage** — `pgPool.query()` was unguarded; a connection timeout would propagate through middleware and crash request handling; now fails open with a stderr log
+- **Drift monitor TypeError on Postgres deployments with partially-initialized context** — `pgCtx` was built whenever `ctx._pgPool` was truthy, even if `pgStore`/`evalStore` were null; now all three must be non-null before passing to `createDriftMonitor()`
+- **`getStats()` NaN/crash on empty `chat_audit` table** — missing `COALESCE` on `COUNT(*)` fields and no `rows[0]` null guard; `parseInt(null)` returned `NaN`; all aggregate columns now coalesced and the row result is guarded
+- **Eval route SQLite error masked as `200 []`** — `GET /agent-api/evals/summary` and `/evals/runs` SQLite catch blocks returned `200 []` on database failure, hiding errors from callers; now returns `500`
+- **`rate-limiter.d.ts` incorrect `RateLimiter` constructor** — phantom `pgPool` third parameter was declared on `RateLimiter` (which does not accept it); removed; `PostgresRateLimiter` is now a separate exported class declaration
+- **`makeRateLimiter` return type wrong** — declared as `RateLimiter` but can return `PostgresRateLimiter`; corrected to `RateLimiter | PostgresRateLimiter`
+- **`PostgresPreferenceStore` d.ts missing `env` constructor param** — third parameter was absent from the type declaration
+- **`_pgPool` absent from `SidecarContext` interface** — the field is accessed directly at runtime; TypeScript consumers now have a typed declaration instead of falling through to the index signature
 
 ### Changed
 

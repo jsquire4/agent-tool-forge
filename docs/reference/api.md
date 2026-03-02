@@ -104,7 +104,7 @@ Health check.
 
 **Response:**
 ```json
-{ "status": "ok", "model": "claude-sonnet-4-6" }
+{ "status": "ok" }
 ```
 
 ---
@@ -324,7 +324,7 @@ If no admin token is configured and `auth.mode` is not `'none'`, admin routes re
 
 ### Metrics tier (optional token)
 
-`GET /metrics` is open by default. Set `auth.metricsToken` to require a Bearer token from your scraper.
+`GET /metrics` is planned for v0.5.0 (Prometheus endpoint). The route does not exist yet and returns 404. `auth.metricsToken` is accepted in config now so you can pre-configure the token before upgrading. When the endpoint ships, it will be open by default and require a Bearer token only when `auth.metricsToken` is set.
 
 ---
 

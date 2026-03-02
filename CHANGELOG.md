@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.10] — 2026-03-01
+
+### Fixed (comprehensive audit of 0.4.6–0.4.9)
+
+- **Security: `createDirectServer` admin routes were unauthenticated** — `/forge-admin/agents` and `/forge-admin/config` in the TUI/standalone server path were dispatching to handlers without an auth check (handlers no longer have inline auth after the 0.4.6 refactor); now gated with `applyRouteAuth(req, sidecarCtx, 2)` matching the `createSidecarRouter` behavior
+- **`sidecar.js` missing runtime exports** — `resolveSecret` and `authenticateAdmin` were declared as re-exports in `sidecar.d.ts` but not actually exported from the module; consumers importing from `agent-tool-forge` would get a runtime error; both are now exported
+- **Duplicate `signingKey` validation error** — `validateConfig` pushed two identical `auth.signingKey` errors when `auth.mode` was `verify`; duplicate block removed; single, descriptive error message kept
+- **`url.pathname` vs `sidecarPath` inconsistency** — `/forge-admin/*` and `/widget/*` dispatch in `createSidecarRouter` was using `url.pathname` instead of the normalized `sidecarPath`; fixed for consistency (no behavior change since these paths don't use the v1 prefix, but correct for future robustness)
+- **Eval catch blocks missing `headersSent` guard** — `sendJson(500)` in `/agent-api/evals/summary` and `/agent-api/evals/runs` error paths now checks `res.headersSent` before writing
+- **`auth.d.ts` `signingKey` type** — was `string`, now `string | null` (matches the actual runtime behavior where an unresolved `${VAR}` resolves to `null`)
+- **Stale `sidecar: { enabled: true }` fixture in `init.test.js`** — config assembly test was passing `enabled: true` to `validateConfig` after the field was removed from schema; updated to `sidecar: { port: 8001 }`
+- **`/health` response in `docs/reference/api.md`** — documented response included `"model"` field that the handler does not emit; removed
+- **`/metrics` presented as functional in `docs/reference/api.md`** — clarified as planned for v0.5.0; current route returns 404; `auth.metricsToken` config field is accepted now for forward compatibility
+
+### Tests
+
+- **`runtimeOverlay` state leak** — Auth Tiers describe block in `integration/sidecar.test.js` now resets the overlay in `beforeEach` to prevent test-order sensitivity
+- **Duplicate test removed** — `config-schema.test.js` had two identical `verify mode + no signingKey → invalid` test cases; duplicate removed
+- **New coverage** — added `auth.mode: 'none'` valid test and `verify + signingKey present → passes` positive test to `config-schema.test.js`
+- **Test count**: 755 (+1 net)
+
+---
+
 ## [0.4.9] — 2026-03-01
 
 ### Fixed

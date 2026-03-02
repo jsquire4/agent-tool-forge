@@ -7,7 +7,7 @@ export interface AuthResult {
 
 export interface AuthConfig {
   mode?: 'trust' | 'verify' | 'none';
-  signingKey?: string;
+  signingKey?: string | null;
   claimsPath?: string;
   adminToken?: string | null;
   metricsToken?: string | null;

@@ -1,365 +1,112 @@
----
-name: forge-tool
-description: Build a new agent tool via structured 12-phase dialogue (phases 0–11). Walks through requirements, challenges necessity, locks the routing contract, then generates implementation code adapted to your stack. Works with any language, any framework.
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash, AskUserQuestion
----
+# /forge-tool — 12-Phase Tool Creation Dialogue
 
-# Forge Tool
-
-This skill is the entry point for adding a tool to your LLM agent. It conducts a structured 12-phase dialogue (phases 0–11) to ensure every tool earns its place, then generates implementation code adapted to your stack. No TODOs. No stubs.
-
-**How it works:** You (Claude) are both orchestrator and developer. The user defines what to build. You challenge, refine, and build it. All code is your responsibility.
-
-> Before starting, read `references/tool-shape.md` for the ToolDefinition spec, `references/description-contract.md` for description formatting rules, and `references/extension-points.md` for stack adaptation guidance. If using the API TUI, read `references/pending-spec.md`.
+Create a new agent tool through a structured 12-phase dialogue. Each phase must complete before the next begins. Do not skip phases or collapse multiple phases into one response.
 
 ---
 
-## Phase 0: Start Forge Dialogue
+## Phase 0 — Explore
 
-> **TUI is now the primary path.** The forge service is maintained for users who prefer Claude Code orchestration, but is no longer required. To forge a tool directly in the TUI, open the terminal, run `node lib/index.js`, and select "Forge Tool" from the main menu. The TUI runs the full 12-phase dialogue with live spec preview, file generation, and eval creation — all in one place.
-
-### Legacy: forge-service path (still supported)
-
-If you prefer the two-terminal workflow with Claude Code as the orchestrator:
-
-1. **Check for active service:**
-   Run: `node lib/forge-service-client.js health`
-   - If succeeds: "Forge service already active. Queue is open."
-   - If fails: start service:
-     Run: `node lib/forge-service-client.js start`
-     Wait for success output (port number).
-     Confirm: "Forge service started. Open the TUI in another terminal: `node lib/index.js`"
-
-2. **Enter watch loop:**
-   ```
-   loop:
-     Run: node lib/forge-service-client.js next
-     - Exit 1 (timeout/empty): continue loop
-       (show "Watching forge queue..." every 3rd timeout)
-     - Exit 0 (item arrived): display item and prompt:
-
-       ─────────────────────────────────────────────
-       Forge queue item ready:
-         {endpoint.method} {endpoint.path} → {endpoint.name}
-       ─────────────────────────────────────────────
-       What would you like to forge?
-         t) Tool + tests (full 12-phase dialogue)
-         v) Verifier for this tool
-         e) Evals only (tool already exists)
-         s) Skip — remove from queue
-       > _
-
-     Based on choice:
-       t → run Phases 1-12 (with this endpoint pre-loaded as the spec)
-       v → invoke /forge-verifier flow
-       e → invoke /forge-eval flow
-       s → do nothing (just complete)
-
-     After choice completes:
-     Run: node lib/forge-service-client.js complete
-     Loop.
-   ```
-
-3. **On session end (any exit path):**
-   Run: `node lib/forge-service-client.js shutdown`
-
-> **Note:** If `forge-pending-tool.json` exists in the project root when the loop begins, read it as the first queued item and proceed as if it arrived via queue. Delete the file after `complete`.
+Ask open-ended questions to understand what the user wants the tool to do. Do not propose a name or schema yet. Listen for the core capability, the use case, and the data required. End with a clear problem statement that the tool will solve.
 
 ---
 
-## Phase 1: Creative Exploration
+## Phase 1 — Skeptic Gate
 
-Open with a single, open-ended question:
+Challenge the tool's necessity before proceeding. Ask:
+- Does an existing tool already cover this? (Ask the user to list their current tools.)
+- Is this tool actually needed by the LLM, or is it a pure UI feature?
+- Is the scope too broad — should this be split into two tools?
+- Is the scope too narrow — could this be a parameter on an existing tool?
 
-> "What should this tool do?"
-
-Your role here is **creative collaborator**. Let the idea breathe before imposing structure.
-
-- Surface angles the user may not have considered
-- Extend the idea: probe the edges of the use case
-- Ask "what problem does this solve for the user?" to ensure it's grounded in real need
-- Keep responses short and conversational
-- Do NOT ask for schema, category, or timeout yet
-
-Continue until the idea feels fully explored — typically 2-4 exchanges.
+If the tool clearly overlaps with an existing one, say so and ask how it differs. Only proceed when the tool passes the skeptic gate.
 
 ---
 
-## Phase 2: Skeptic Gate
+## Phase 2 — Description + Name
 
-Before converging, challenge the tool's right to exist:
+Lock the **routing contract** — the description is what the LLM reads to decide when to call this tool. It must be unambiguous.
 
-- **Overlap:** Is this genuinely distinct from the existing tools you listed in Phase 0? Could it be a parameter or mode on an existing tool instead?
-- **Necessity:** What does the agent lose without this tool? Can it work around the absence?
-- **Scope:** Is this one tool or two tools in disguise? A tool should do one thing well.
-- **Feasibility:** Does the data source actually provide what this tool needs?
-
-If the tool cannot clearly answer "what does the agent lose without me?", push back:
-
-> "I want to make sure this earns its place — we want a sharp agent with focused tools, not a confused agent with 50 mediocre ones. Help me understand what breaks without this."
-
-Only proceed once you are convinced the tool is necessary, distinct, and correctly scoped.
+1. Propose a snake_case tool name (e.g. `get_portfolio_value`)
+2. Write a precise one-sentence description (≤ 120 chars, no hedging words like "might" or "can")
+3. Ask the user to confirm both. Do not proceed until confirmed.
 
 ---
 
-## Phase 3: Converge on Description, Name, and Trigger Phrases
+## Phase 3 — Collect Fields
 
-### CRITICAL: The description is the routing contract
+Collect the tool's full specification:
 
-The tool's `description` field is the **single source of truth** for how the LLM decides when to use this tool. It flows into the system prompt and the LLM reads it to decide which tool to call. A vague description = wrong tool routing = failed evals.
-
-> See `references/description-contract.md` for the full format specification and examples.
-
-### Description requirements
-
-Synthesize the dialogue into a one-sentence description satisfying ALL of:
-
-1. **What it does** — the action, not what it returns
-2. **When to use it** — the trigger condition distinguishing it from every other tool
-3. **When NOT to use it** — disambiguation hint if there's common confusion
-4. **Data source** — which API or computation backs it
-
-**Format:** `<What it does>. Use when <trigger condition>. <Disambiguation if needed>.`
-
-Present the description to the user:
-> "Here's the description I'd write: [description]. This is what the LLM sees to decide when to call this tool. Does it clearly distinguish this from the others?"
-
-Iterate until locked. **Do not move on if the description is ambiguous with any existing tool.**
-
-### Name
-
-Derive mechanically from the locked description:
-- snake_case, verb-noun format preferred: `get_holdings`, `calculate_tax`, `check_wash_sale`
-- Self-documenting — no abbreviations
-
-### Trigger phrases
-
-Identify **3-5 natural language phrases** a user would say that should route to this tool. These drive eval generation in Phase 10.
-
-Present: "These are the phrases I'd expect to trigger this tool: [list]. Any I'm missing?"
-
-Do not proceed until description, name, and trigger phrases are all confirmed.
+| Field | What to ask |
+|-------|-------------|
+| `schema` | What parameters does the tool accept? (name, type, required/optional, description for each) |
+| `category` | What category? (e.g. `portfolio`, `account`, `market`) |
+| `consequenceLevel` | How serious is a wrong call? (`low` / `medium` / `high`) |
+| `requiresConfirmation` | Should the HITL engine pause for user approval? (yes/no) |
+| `timeout` | Max execution time in ms (default: 10000) |
+| `tags` | Optional searchability tags |
+| `triggerPhrases` | 3–5 example user phrases that should trigger this tool |
 
 ---
 
-## Phase 4: Collect Remaining Fields
+## Phase 4 — Routing
 
-Collect the remaining ToolDefinition fields conversationally — not as a form dump.
+Collect the HTTP routing information:
 
-1. **Schema** — "What inputs does this tool accept?" Build the validation schema. Read it back for confirmation.
-
-2. **Consequence Level** — `'low' | 'medium' | 'high'`:
-   - `low` — no real-world impact (read-only, summaries)
-   - `medium` — moderate impact (analysis influencing decisions)
-   - `high` — significant impact (trades, account changes, deletions)
-
-3. **Category** — `'read' | 'write' | 'delete' | 'side_effect'`:
-   - `read` — retrieves data, no mutations
-   - `write` — performs mutations (creates, updates)
-   - `delete` — permanently removes data
-   - `side_effect` — triggers external side effects (emails, webhooks, etc.)
-
-4. **requiresConfirmation** — ask **separately** from category:
-   > "Should the agent pause and wait for user approval before executing?"
-
-5. **timeout** — default 15000ms. Only ask if the tool calls slow external APIs.
-
-6. **tags** — optional domain tags for filtering/grouping.
-
-7. **dependsOn** — optional. "Does this tool internally call other tools?"
+| Field | What to ask |
+|-------|-------------|
+| `endpointTarget` | Full path template, e.g. `/api/portfolio/{userId}` |
+| `httpMethod` | GET / POST / PUT / DELETE / PATCH |
+| `authType` | How is the request authenticated? (`bearer` / `api-key` / `none`) |
+| Parameter mapping | Which tool parameters map to path params vs. query params vs. body fields? |
 
 ---
 
-## Phase 5: Routing
+## Phase 5 — Dependency Check
 
-Collect the MCP routing layer that maps the tool to a real API endpoint.
-
-1. **endpointTarget** — the URL path the tool calls (e.g. `/api/v1/holdings`)
-2. **httpMethod** — `GET` | `POST` | `PUT` | `DELETE` | `PATCH`
-3. **authType** — `bearer` | `apiKey` | `none`
-4. **paramMap** — object mapping schema field names to API parameter names (can be empty `{}` if names match)
-
-Present the routing config and ask for confirmation before proceeding.
-
-> If the tool does not route to an HTTP endpoint (e.g. local computation), this phase can be skipped with sensible defaults.
+Ask: "What does the tool context (`ctx`) need to provide at runtime?" For each dependency (API client, DB connection, auth token, external service), verify the user's sidecar context object already provides it. Flag any gaps.
 
 ---
 
-## Phase 6: Dependency Check
+## Phase 6 — Confirm Full Spec
 
-Before generating code, check whether the tool needs any service beyond what `ToolContext` provides.
-
-The standard context provides:
-- `context.client` — API client for external calls
-- `context.auth` — authentication credentials
-- `context.userId` — the authenticated user ID
-- `context.abortSignal` — for request cancellation
-
-> See `references/extension-points.md` for how to add new services to the context.
-
-If the tool needs a service not in the context — **flag and exit. Do not write any files.**
-
-Present an actionable checklist:
-```
-This tool needs a dependency not yet in ToolContext.
-
-Required: [ServiceName]
-
-To unblock:
-  1. Add [ServiceName] to your ToolContext interface
-  2. Pass the instance into tool context construction
-  3. Re-run /forge-tool
-
-No files have been written.
-```
-
-If no new deps are needed — proceed to Phase 7.
+Present a complete summary of the spec as a formatted block (name, description, schema, routing, HITL config, dependencies). Ask the user to confirm before any code is written. Do not proceed without explicit approval.
 
 ---
 
-## Phase 7: Confirm Full Spec
+## Phase 7 — Generate All Files
 
-Present the complete spec before writing a single file:
+Generate the following files (show each in a separate code block, then write them):
 
-```
-Tool Spec — ready to generate:
-
-  name:                 {{name}}
-  description:          {{description}}
-  category:             {{category}}
-  consequenceLevel:     {{consequenceLevel}}
-  requiresConfirmation: {{requiresConfirmation}}
-  timeout:              {{timeout}}ms
-  tags:                 [{{tags}}]
-  dependsOn:            [{{dependsOn}}] | none
-  schema:
-    {{field}}: {{type}} — {{fieldDescription}}
-    ...
-  trigger phrases:      {{triggerPhrases}}
-
-Files to be created:
-  + {{toolsDir}}/{{name}}.tool.{{ext}}
-  + {{testsDir}}/{{name}}.tool.spec.{{ext}}
-
-Registration:
-  ~ {{barrelsFile}}  ← add one export/registration line
-
-Shall I proceed?
-```
-
-Do not write any files until the user confirms.
+1. **`tools/<name>.tool.js`** — ToolDefinition object with `name`, `description`, `schema`, `category`, `consequenceLevel`, `requiresConfirmation`, `timeout`, `tags`, `triggerPhrases`, `mcpRouting`, and a stub `execute()` for local testing
+2. **`tools/<name>.tool.test.js`** — Vitest unit tests covering: schema validation, happy path execute(), error path, timeout behavior
+3. **Register in barrel** — add an export line to `tools/index.js` (or create if absent)
 
 ---
 
-## Phase 8: Generate and Implement All Files
+## Phase 8 — Run Tests
 
-Execute in this exact order:
-
-### 8a. Tool Implementation File
-
-Generate the tool as a const export (or your language's equivalent) conforming to ToolDefinition.
-
-Key rules:
-- Check `context.abortSignal?.aborted` before any I/O
-- Return `ToolResult` shape: `{ tool, fetchedAt, data?, error? }`
-- Never throw from `execute()` (except re-throwing HITL interrupts)
-- All service access through `context.*`
-- Use the validation library from `forge.config.json` or ask the user
-
-If `requiresConfirmation: true`, implement the HITL pattern appropriate to the user's framework (LangGraph interrupt, custom webhook, manual pause, etc.).
-
-### 8b. Register in Barrel
-
-Add one line to the barrel/registry file. This should be the **only** existing file edited.
-
-### 8c. Test File
-
-Write **real, passing tests** — not empty shells.
-
-Minimum test cases:
-1. Returns ToolResult with data on success (mock the API client)
-2. Returns ToolResult with error when the API client throws
-3. Returns cancellation ToolResult when abortSignal is already aborted
-
-Use fixed, realistic fixture data — never randomized inputs.
-
-### 8d. Verification/Confirmation File (if requiresConfirmation: true)
-
-If the tool requires confirmation, generate the HITL verification logic appropriate to the user's framework.
+Run `npm test` (or `vitest run`) and confirm all tests pass. If any test fails, fix the generated code and re-run. Do not proceed until green.
 
 ---
 
-## Phase 9: Run Tests
+## Phase 9 — Generate Evals
 
-After all files are written, run the test suite:
-
-1. Run tests (using the command from `forge.config.json` or asking the user)
-2. Run type-check if applicable
-3. All tests must pass before proceeding
-
-If any test fails:
-1. Read the failure output
-2. Fix the implementation or spec
-3. Re-run tests
-4. Do not report success until the suite is green
+Hand off to the `/forge-eval` skill: generate a golden eval suite (5–10 cases) and a labeled eval suite (2–3 multi-tool scenarios). Write to `evals/<name>.golden.json` and `evals/<name>.labeled.json`.
 
 ---
 
-## Phase 10: Generate Evals
+## Phase 10 — Generate Verifiers
 
-After tests pass, hand off to `/forge-eval` (if available) with this context:
-- Tool `name`, `description`, `category`, `schema`
-- `trigger phrases` from Phase 3
-- List of all other tools in the registry
-
-If `/forge-eval` is not installed, report that eval generation is available separately and list what the user would need to provide.
+Hand off to the `/forge-verifier` skill: generate a verifier stub for the new tool's output. Write to `verification/<name>.verifier.js` and register in `verification/index.js`.
 
 ---
 
-## Phase 11: Generate Verifiers
+## Phase 11 — Done
 
-Auto-advance phase. Generate verifier stubs for the new tool using the `/forge-verifier` skill if available.
+Print a summary of everything created:
+- Tool file and test file paths
+- Eval files created
+- Verifier stub created
+- Any warnings or follow-up items
 
-If `/forge-verifier` is not installed, skip this phase silently.
-
----
-
-## Phase 12: Done
-
-When all tests are green:
-
-1. **If tool was created from a pending spec:** Delete or rename `forge-pending-tool.json` so it is not reused.
-2. **If `/forge-verifier` is available and verification is enabled:** Check verifier coverage. If tools exist without verifiers, add: "Note: X tools have no verifier coverage. Run `/forge-verifier` to create verifiers."
-3. Report:
-
-```
-Tool `{{name}}` generated and tested.
-
-Files created:
-  + {{toolsDir}}/{{name}}.tool.{{ext}}
-  + {{testsDir}}/{{name}}.tool.spec.{{ext}}
-
-Registration:
-  ~ {{barrelsFile}}
-
-System prompt: auto-updated (tool appears via barrel discovery)
-Unit tests: passing
-Eval coverage: [generated | available via /forge-eval]
-```
-
----
-
-## Rules
-
-- **You are the developer.** The user defines what to build. You build it.
-- **Green out of the box.** Tests must pass before you report success.
-- **Description is the routing contract.** If you can't write a clear description, the tool's scope is wrong — go back to Phase 2.
-- **Description before name.** Do not ask for a tool name until the description is locked.
-- **Trigger phrases before code.** Identify how users will invoke this tool before writing implementation.
-- **Skeptic after explorer.** Surface the best version of the idea before challenging it.
-- **Challenge necessity.** A tool that cannot answer "what breaks without me?" does not earn a place.
-- **`category` and `requiresConfirmation` are independent.** Collect them separately.
-- **Flag and exit on unknown deps.** If the tool needs a service not in ToolContext, write no files.
-- **Barrel registration only.** Add one line to the registry. Never edit auto-discovery files.
-- **Fixed fixtures only.** Test data must be deterministic. No randomization.
-- **Adapt to the user's stack.** Read `forge.config.json` if present. Ask if not. Generate real code in their language with their frameworks — not pseudo-code.
+Ask if the user wants to adjust anything before finishing.

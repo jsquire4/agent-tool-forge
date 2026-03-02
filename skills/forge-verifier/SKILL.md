@@ -1,118 +1,78 @@
----
-name: forge-verifier
-description: Gap detection and verifier creation. Reports tools without verifier coverage, suggests verifiers by output group, generates verifier stubs and barrel registration.
-allowed-tools: Read, Edit, Write, Grep, Glob, AskUserQuestion
----
+# /forge-verifier — Detect Missing Verifiers and Generate Stubs
 
-# Forge Verifier
-
-This skill detects tools without verifier coverage and generates verifier stubs. Verifiers are **one-to-many** — one verifier can apply to many tools. Run separately from forge-tool.
-
-> Before starting, read `references/verifier-pattern.md` for the interface and registry pattern, and `references/output-groups.md` for output group mapping.
+Scan the tool registry for tools without verifier coverage, then generate verifier stubs for each gap.
 
 ---
 
-## Phase 0: Read Current State
+## Step 1 — Scan for Gaps
 
-1. Load `forge.config.json` — check `verification.enabled`. If false or missing, tell the user verification is disabled and exit.
-2. Load existing tools (from `project.toolsDir` or `project.barrelsFile`)
-3. Load existing verifiers (from `verification.barrelsFile` or `verification.verifiersDir`)
-4. Infer **output group** per tool from description, tags, schema (see `references/output-groups.md`)
+Read `tools/index.js` to list all registered tools.
+Read `verification/index.js` (or `verifiers/index.js`) to list all registered verifiers.
 
----
+A verifier gap exists when a tool name has no corresponding verifier registration.
 
-## Phase 1: Gap Report
+Print a gap table:
+| Tool | Has Verifier? |
+|------|--------------|
+| get_portfolio_value | ✗ MISSING |
+| list_accounts | ✓ |
 
-Build a coverage matrix:
-
-| Tool | Output Group | Verifier Coverage |
-|------|--------------|-------------------|
-| get_holdings | holdings | concentration_risk ✓ |
-| get_dividends | dividends | — |
-| portfolio_summary | holdings, performance | concentration_risk ✓, stale_data ✓ |
-
-**Gaps:** Tools or output groups with no verifier.
-
-Present to the user:
-
-```
-Verifier Coverage Report
-
-Tools without verifier coverage:
-  • get_dividends     — output group: dividends
-  • market_data       — output group: quotes
-
-Suggested verifiers:
-  • source_attribution — would cover all tools (create if missing)
-  • stale_data        — would cover get_dividends, market_data (time-sensitive data)
-
-Create verifiers? [Yes / Later / Dismiss]
-```
-
-If no gaps: "All tools have verifier coverage." Exit.
+If no gaps, print "All tools have verifier coverage." and stop.
 
 ---
 
-## Phase 2: Select Verifiers to Create
+## Step 2 — Confirm Which to Generate
 
-If user says Yes, ask which to create:
-
-- List suggested verifiers (from gap analysis)
-- User selects one or more
-- For each selected: proceed to Phase 3
+List the tools with missing verifiers. Ask the user which ones to generate stubs for (default: all).
 
 ---
 
-## Phase 3: Generate Verifier Stub
+## Step 3 — Generate Verifier Stubs
 
-For each verifier:
+For each selected tool, generate `verification/<name>.verifier.js`:
 
-1. **Order** — Pick next available in category (e.g. R-0001, A-0002). Glob existing verifiers for `order =` to avoid collisions.
-2. **Path** — `{{verifiersDir}}/{{name}}.verifier.{{ext}}`
-3. **Template** — Use the appropriate stub from `references/verifier-stubs.md` (source_attribution, concentration_risk, stale_data, or generic)
-4. **Barrel** — Add one export line to `{{barrelsFile}}`
+```js
+/**
+ * Verifier for <tool_name>.
+ * Called after every tool execution with (args, result).
+ * Return: { outcome: 'pass'|'warn'|'block', message: string|null }
+ */
+export const <camelCaseName>Verifier = {
+  name: '<name>_verifier',
+  // Tools this verifier applies to ('*' for all tools)
+  tools: ['<tool_name>'],
 
-Generate the verifier file with:
-- Class implementing Verifier interface
-- `name`, `order` set
-- `verify()` with `// EXTENSION POINT` for domain logic
-- Real structure (parsing tool results, etc.) — user fills in thresholds and rules
+  async verify(args, result) {
+    // TODO: implement verification logic
+    // Common checks:
+    //   - result.status === 200 (HTTP success)
+    //   - required fields present in result.body
+    //   - no negative values for financial amounts
+    //   - data freshness (timestamp within acceptable window)
 
----
-
-## Phase 4: Confirm and Write
-
-Present the files to be created:
-
-```
-Verifier: {{name}}
-  + {{verifiersDir}}/{{name}}.verifier.ts
-  ~ {{barrelsFile}}  ← add one export line
-```
-
-User confirms → write files.
-
----
-
-## Phase 5: Report
-
-```
-Verifier `{{name}}` created.
-
-Files:
-  + {{verifiersDir}}/{{name}}.verifier.ts
-  ~ {{barrelsFile}}
-
-Fill in the EXTENSION POINT sections with your domain logic.
-Run verifier tests to validate.
+    if (result.error) {
+      return { outcome: 'warn', message: `Tool returned error: ${result.error}` };
+    }
+    return { outcome: 'pass', message: null };
+  }
+};
 ```
 
 ---
 
-## Rules
+## Step 4 — Register Verifiers
 
-- **One-to-many.** Verifiers apply to output groups, not individual tools.
-- **Gap detection first.** Always report before creating.
-- **Stub with structure.** Generate real parsing logic; user fills thresholds and rules.
-- **Order uniqueness.** No two verifiers share the same `order` value.
-- **Barrel only.** Add one line. Never edit the index/derivation file.
+Add export lines to `verification/index.js` (create if absent):
+
+```js
+export { <camelCaseName>Verifier } from './<name>.verifier.js';
+```
+
+---
+
+## Step 5 — Summary
+
+Print:
+- N verifier stubs created
+- File paths written
+- Reminder: replace the TODO with actual verification logic before shipping

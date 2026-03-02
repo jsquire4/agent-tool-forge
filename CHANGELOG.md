@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.9] — 2026-03-01
+
+### Fixed
+
+- **`findProjectRoot()` path resolution** — was resolving relative to the package's own `lib/index.js`, so `npx forge` always looked for `forge.config.json` inside `node_modules/agent-tool-forge/` instead of the user's project; now uses `process.cwd()`
+- **Dead imports in `index.js`** — removed unused `dirname` and `fileURLToPath` imports after `findProjectRoot` fix
+- **Skills now ship with the package** — added `skills/` to the npm `files` array; `cp -r node_modules/agent-tool-forge/skills/forge-tool ~/.claude/skills/` now works as documented
+
+### Added
+
+- **`skills/forge-tool/SKILL.md`** — Claude Code skill for the full 12-phase tool creation dialogue
+- **`skills/forge-eval/SKILL.md`** — Claude Code skill for generating golden + labeled eval suites
+- **`skills/forge-mcp/SKILL.md`** — Claude Code skill for generating an MCP server scaffold from ToolDefinitions
+- **`skills/forge-verifier/SKILL.md`** — Claude Code skill for detecting verifier gaps and generating stubs
+
+---
+
 ## [0.4.8] — 2026-03-01
 
 ### Fixed (audit pass on 0.4.7)

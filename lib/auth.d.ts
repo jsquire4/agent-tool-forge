@@ -6,9 +6,11 @@ export interface AuthResult {
 }
 
 export interface AuthConfig {
-  mode?: 'trust' | 'verify';
+  mode?: 'trust' | 'verify' | 'none';
   signingKey?: string;
   claimsPath?: string;
+  adminToken?: string | null;
+  metricsToken?: string | null;
 }
 
 export interface Authenticator {
@@ -22,4 +24,9 @@ export interface AdminAuthResult {
   error: string | null;
 }
 
-export function authenticateAdmin(req: object, adminKey: string): AdminAuthResult;
+export function authenticateAdmin(req: object, adminKey: string | null): AdminAuthResult;
+
+export function resolveSecret(
+  value: string | null | undefined,
+  env?: Record<string, string>
+): string | null;

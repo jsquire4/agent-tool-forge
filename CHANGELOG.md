@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.6] — 2026-03-01
+
+### Added
+
+- **Auth tiers (open/app/admin/scrape)** — centralized in `createSidecarRouter`; tier is determined by path prefix; all enforcement happens before route dispatch
+- **`auth.adminToken` config field** — new canonical location for the admin Bearer token; resolves `${VAR}` env references at request time; `config.adminKey` still works as fallback for backward compat
+- **`auth.metricsToken` config field** — reserved for the upcoming `/metrics` Prometheus endpoint (v0.5.0); open when not set, enforced when set
+- **`resolveSecret(value, env)` export from `auth.js`** — expands `${VAR}` references in any token string; used internally for adminToken/metricsToken/adminKey resolution
+- **`auth.mode: 'none'`** — bypass all auth tiers; intended for local dev / demo deployments
+
+### Fixed
+
+- **Security: `/agent-api/evals/summary` and `/agent-api/evals/runs` were unauthenticated** — now gated as admin tier (tier 2); require the same Bearer token as `/forge-admin/*` routes
+- **`config.adminKey` env-var references (`"${VAR}"`) were used literally** — `resolveSecret` now expands them correctly before the timing-safe comparison
+
+### Changed
+
+- **`handlers/admin.js` and `handlers/agents.js`** — inline auth boilerplate removed; auth is now handled centrally by the router; `authenticateAdmin` import removed from both handlers
+- **Route tier classification:**
+  - Tier 0 (open): `/health`
+  - Tier 1 (app/JWT): `/agent-api/chat*`, `/agent-api/user/*`, `/agent-api/conversations/*`, `/agent-api/tools`, `/widget/*`, `/mcp*`
+  - Tier 2 (admin): `/forge-admin/*`, `/agent-api/evals/*`
+  - Tier 3 (scrape): `/metrics` (schema-only, wired in v0.5.0)
+- **Fail-closed**: if `auth.mode !== 'none'` and an admin route has no token configured → 503; prevents accidentally open admin endpoints
+
+### Migration
+
+- Existing `config.adminKey` users: no change required — router reads it as legacy fallback
+- New canonical pattern: `{ "auth": { "adminToken": "${FORGE_ADMIN_KEY}" } }`
+- `auth.mode: 'none'` users: no change — tier system bypassed entirely
+
+### Tests
+
+- +19 added, -5 removed = +15 net (754 total): `resolveSecret` (8 in `auth.test.js` — including `null` env guard), auth tier integration via `createSidecarRouter` (11 in `integration/sidecar.test.js` — including `/evals/runs`, `/agent-api/v1/evals/summary` versioned path, and all tier scenarios); removed 5 handler-level auth unit tests now covered by router integration tests
+
+---
+
 ## [0.4.5] — 2026-03-01
 
 ### Added

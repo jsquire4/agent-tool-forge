@@ -12,14 +12,14 @@ export interface VerificationConfig {
 }
 
 export interface ConversationConfig {
-  store?: string;
+  store?: 'sqlite' | 'redis' | 'postgres';
   window: number;
   redis?: object;
 }
 
 export interface DatabaseConfig {
   type?: 'sqlite' | 'postgres';
-  url?: string;
+  url?: string | null;
 }
 
 export interface AuthConfig {
@@ -37,7 +37,7 @@ export interface AgentConfig {
   displayName?: string;
   systemPrompt?: string;
   defaultModel?: string;
-  defaultHitlLevel?: string;
+  defaultHitlLevel?: 'autonomous' | 'cautious' | 'standard' | 'paranoid';
   toolAllowlist?: string | string[];
   maxTurns?: number;
   maxTokens?: number;

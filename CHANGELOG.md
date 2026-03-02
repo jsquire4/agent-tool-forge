@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.11] — 2026-03-01
+
+### Fixed (third audit pass)
+
+- **Security: `createDirectServer` sidecar routes had no centralized auth gate** — `agent-api/chat`, `chat-sync`, `chat/resume`, `user/preferences`, `conversations`, and `tools` routes had no `applyRouteAuth` call in the TUI/standalone server path; in `--mode=sidecar` (binds `0.0.0.0`) only handler-level auth protected them; now gated by the same `getRouteTier`/`applyRouteAuth` pattern as `createSidecarRouter`
+- **`forge init` wrote config into package directory** — `runInit()` was called without a `projectRoot` arg, defaulting to `resolve(__dirname, '..')` (the installed package dir); now passes `findProjectRoot()` (= `process.cwd()`) so the wizard writes into the user's project
+- **`resolveSecret` null guard retained** — incorrectly removed in 0.4.10 (audit false-positive); the default param `env = {}` only guards against `undefined`, not explicit `null`; the `env ?? {}` guard is required and restored with clarifying comment
+- **`admin.js` file-level JSDoc** — corrected "NOT written back to forge.config.json" (false since 0.2.0's `persistOverlay`) to accurately describe conditional persistence via `ctx.configPath`
+- **`agents.js` JSDoc** — removed stale `ctx.config` from `@param` description; handler only destructures `agentRegistry` after 0.4.6 auth removal
+- **`auth.js` JSDoc** — corrected `@param {string} adminKey` to `{string|null}` to match the `.d.ts` declaration and the runtime `!adminKey` guard
+- **`sidecar.d.ts` factory return types** — `makeHitlEngine` and `makeAgentRegistry` were typed as returning `object`; now return `HitlEngine` and `AgentRegistry` respectively, giving consumers full typed access to all methods
+- **`config.d.ts` type precision** — `ConversationConfig.store` narrowed from `string` to the `'sqlite'|'redis'|'postgres'` union; `AgentConfig.defaultHitlLevel` narrowed from `string` to the HITL level union; `DatabaseConfig.url` typed as `string | null | undefined` to match the `null` default
+- **CHANGELOG comparison links** — added reference links for versions 0.4.6 through 0.4.10
+
+### Tests (761 total, +6)
+
+- **Tier 1 JWT rejection via `createSidecarRouter`** — `POST /agent-api/chat` without token now tested through the router (not just manual dispatch); asserts `WWW-Authenticate: Bearer` header
+- **Tier 3 metrics auth** — four new tests: open (404 not 401) when `metricsToken` null; 401 + `WWW-Authenticate` when wrong token; passes auth gate (404) when correct token; all covering the `applyRouteAuth` Tier 3 branch
+- **`agents.test.js`** — added `PATCH → 405` (previously uncovered fallthrough) and "delete sole default agent when no others remain" (previously uncovered `remaining.length === 0` branch)
+- **`admin.test.js` and `agents.test.js`** — removed vestigial `adminKey` parameters from `makeCtx`/`makeReq`; these helpers now correctly document that auth is router-enforced, not handler-enforced
+- **`forge-service.mcp.test.js`** — "unknown route" expectation updated from 404 → 401; with centralized auth, unauthenticated requests to any app-tier path return 401 before route dispatch (consistent with `createSidecarRouter` behavior; `sidecar.test.js` 404 test uses `auth.mode: 'none'` for the same reason)
+
+---
+
 ## [0.4.10] — 2026-03-01
 
 ### Fixed (comprehensive audit of 0.4.6–0.4.9)
@@ -312,6 +336,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **TUI** (`lib/index.js`) — blessed-based terminal interface with main menu, tools & evals view, model comparison, drift monitor, forge workflow, onboarding, and settings screens
 - **HTTP sidecar endpoints**: `POST /agent-api/chat` (SSE), `POST /agent-api/chat-sync`, `POST /agent-api/chat/resume`, `GET/PUT /agent-api/user/preferences`, `GET /agent-api/conversations`, `GET /agent-api/tools`, `PUT /forge-admin/config/:section`, `GET/POST/PUT/DELETE /forge-admin/agents*`
 
+[0.4.11]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.10...v0.4.11
+[0.4.10]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.9...v0.4.10
+[0.4.9]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.8...v0.4.9
+[0.4.8]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.7...v0.4.8
+[0.4.7]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.6...v0.4.7
+[0.4.6]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.3...v0.4.5
 [0.4.3]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/jsquire4/agent-tool-forge/compare/v0.4.1...v0.4.2

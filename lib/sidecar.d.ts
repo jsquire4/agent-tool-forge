@@ -73,8 +73,8 @@ export function getDb(path: string): object;
 export function initSSE(res: object): { write(event: string, data: unknown): void; close(): void };
 export function makePromptStore(config: object, db: object): object;
 export function makePreferenceStore(config: object, db: object): object;
-export function makeHitlEngine(config: object, db: object, redis?: object, pgPool?: object): object;
-export function makeAgentRegistry(config: object, db: object): object;
+export function makeHitlEngine(config: object, db: object, redis?: object, pgPool?: object): HitlEngine;
+export function makeAgentRegistry(config: object, db: object): AgentRegistry;
 
 export class AgentRegistry {
   constructor(config: object, db: object);
@@ -88,6 +88,14 @@ export class AgentRegistry {
   filterTools(tools: object[]): object[];
   buildAgentConfig(config: object, agent: object | null): object;
   resolveSystemPrompt(agent: object | null, promptStore: object, config: object): Promise<string>;
+}
+
+export class HitlEngine {
+  constructor(opts?: { db?: object; redis?: object; pgPool?: object; ttlMs?: number });
+  destroy(): void;
+  shouldPause(hitlLevel: string, toolSpec?: { name?: string; method?: string; requiresConfirmation?: boolean }): boolean;
+  pause(state: object): Promise<string>;
+  resume(resumeToken: string): Promise<object | null>;
 }
 
 export class VerifierRunner {
